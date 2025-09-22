@@ -1,6 +1,5 @@
-version: "3.8"
-
 services:
+    # 1. MongoDB
     mongo:
         image: mongo:6.0
         container_name: mongo-v4
@@ -13,6 +12,7 @@ services:
         networks:
             - trending_news
 
+    # 2. Spark Master
     spark-master:
         build:
             context: .
@@ -34,6 +34,7 @@ services:
         networks:
             - trending_news
 
+    # 3. Spark Worker
     spark-worker:
         build:
             context: .
@@ -55,6 +56,7 @@ services:
         networks:
             - trending_news
 
+    # 4. Jupyter
     jupyter:
         image: jupyter/pyspark-notebook
         container_name: spark-jupyter-v4
@@ -69,20 +71,22 @@ services:
         networks:
             - trending_news
 
+    # 5. Elasticsearch
     elasticsearch:
         image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
         container_name: elasticsearch-v4
         environment:
             - discovery.type=single-node
-            - xpack.security.enabled=false # tắt security cho dễ test
+            - xpack.security.enabled=false
             - ES_JAVA_OPTS=-Xms1g -Xmx1g
         ports:
             - "9200:9200"
         volumes:
-            - es-data:/usr/share/elasticsearch/data
+            - ./es-data:/usr/share/elasticsearch/data
         networks:
             - trending_news
 
+    # 6. Kibana
     kibana:
         image: docker.elastic.co/kibana/kibana:8.15.0
         container_name: kibana-v4
@@ -95,32 +99,170 @@ services:
         networks:
             - trending_news
 
+    # 7. Zookeeper
     zookeeper:
-        image: confluentinc/cp-zookeeper:7.6.1
+        image: confluentinc/cp-zookeeper:7.4.0
         container_name: zookeeper-v4
         environment:
             ZOOKEEPER_CLIENT_PORT: 2181
             ZOOKEEPER_TICK_TIME: 2000
+            ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: WARN
         ports:
             - "2181:2181"
+        volumes:
+            - zookeeper-data:/var/lib/zookeeper/data
+            - zookeeper-logs:/var/lib/zookeeper/log
+        healthcheck:
+            test: [ "CMD-SHELL", "echo ruok | nc localhost 2181 || exit 1" ]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+        restart: unless-stopped
         networks:
             - trending_news
 
+    # 8. Kafka
     kafka:
         image: confluentinc/cp-kafka:7.6.1
         container_name: kafka-v4
         depends_on:
-            - zookeeper
+            zookeeper:
+                condition: service_healthy
         ports:
             - "9092:9092"
+            - "29092:29092"
         environment:
             KAFKA_BROKER_ID: 1
-            KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-            KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-            KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+            KAFKA_ZOOKEEPER_CONNECT: zookeeper-v4:2181
+            KAFKA_LISTENERS: PLAINTEXT_INTERNAL://0.0.0.0:29092,PLAINTEXT_EXTERNAL://0.0.0.0:9092
+            KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://kafka-v4:29092,PLAINTEXT_EXTERNAL://localhost:9092
+            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_INTERNAL:PLAINTEXT,PLAINTEXT_EXTERNAL:PLAINTEXT
+            KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+            KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+            KAFKA_MIN_INSYNC_REPLICAS: 1
+            KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+            KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+            KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
         volumes:
             - ./kafka-data:/var/lib/kafka/data
+        healthcheck:
+            test: [ "CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka-v4:29092 || exit 1" ]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+        restart: unless-stopped
+        networks:
+            - trending_news
+
+    # 9. Airflow Postgres
+    airflow-postgres:
+        image: postgres:15
+        container_name: airflow-postgres-v4
+        environment:
+            POSTGRES_USER: airflow
+            POSTGRES_PASSWORD: airflow
+            POSTGRES_DB: airflow
+        ports:
+            - "5434:5432"
+        volumes:
+            - airflow_pgdata:/var/lib/postgresql/data
+        networks:
+            - trending_news
+
+    # 10. Airflow Init
+    airflow-init:
+        build: .
+        container_name: airflow-init-v4
+        environment:
+            AIRFLOW__CORE__EXECUTOR: LocalExecutor
+            AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres-v4:5432/airflow
+            AIRFLOW__WEBSERVER__SECRET_KEY: super_fixed_secret_12345
+        entrypoint: >
+            /bin/bash -c "airflow db init && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com"
+        depends_on:
+            - airflow-postgres
+        networks:
+            - trending_news
+
+    # 11. Airflow Webserver
+    airflow-webserver:
+        build: .
+        container_name: airflow-webserver-v4
+        restart: always
+        environment:
+            AIRFLOW__CORE__EXECUTOR: LocalExecutor
+            AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres-v4:5432/airflow
+            AIRFLOW__WEBSERVER__SECRET_KEY: super_fixed_secret_12345
+            PYTHONPATH: /opt/airflow/crawler
+        volumes:
+            - ./logs:/opt/airflow/logs
+            - ./plugins:/opt/airflow/plugins
+            - ./dags:/opt/airflow/dags
+            - ./requirements.txt:/requirements.txt
+            - ./crawler:/opt/airflow/crawler
+        ports:
+            - "8085:8080"
+        command: bash -c "pip install --no-cache-dir -r /requirements.txt && airflow webserver"
+        depends_on:
+            - airflow-init
+        networks:
+            - trending_news
+
+    # 12. Airflow Scheduler
+    airflow-scheduler:
+        build: .
+        container_name: airflow-scheduler-v4
+        restart: always
+        environment:
+            AIRFLOW__CORE__EXECUTOR: LocalExecutor
+            AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres-v4:5432/airflow
+            AIRFLOW__WEBSERVER__SECRET_KEY: super_fixed_secret_12345
+        volumes:
+            - ./logs:/opt/airflow/logs
+            - ./plugins:/opt/airflow/plugins
+            - ./dags:/opt/airflow/dags
+            - ./requirements.txt:/requirements.txt
+            - ./crawler:/opt/airflow/crawler
+        command: bash -c "pip install --no-cache-dir -r /requirements.txt && airflow scheduler"
+        depends_on:
+            - airflow-init
+        networks:
+            - trending_news
+
+    # 13. MLflow Postgres
+    mlflow-postgres:
+        image: postgres:15
+        container_name: mlflow-postgres-v4
+        environment:
+            POSTGRES_USER: user
+            POSTGRES_PASSWORD: password
+            POSTGRES_DB: mlflow
+        ports:
+            - "5435:5432"
+        volumes:
+            - ./mlflow_pgdata:/var/lib/postgresql/data
+        networks:
+            - trending_news
+
+    # 14. MLflow Server
+    mlflow:
+        image: python:3.11-slim
+        container_name: mlflow-v4
+        restart: always
+        depends_on:
+            - mlflow-postgres
+        environment:
+            MLFLOW_BACKEND_STORE_URI: postgresql+psycopg2://user:password@mlflow-postgres-v4:5432/mlflow
+            MLFLOW_ARTIFACT_ROOT: /mlflow/artifacts
+        volumes:
+            - ./mlruns:/mlflow/artifacts
+        ports:
+            - "5000:5000"
+        command: >
+            bash -c "pip install --no-cache-dir mlflow psycopg2-binary && \ mlflow server \
+                --backend-store-uri postgresql+psycopg2://user:password@mlflow-postgres-v4:5432/mlflow \
+                --default-artifact-root /mlflow/artifacts \
+                --host 0.0.0.0 --port 5000"
         networks:
             - trending_news
 
@@ -131,3 +273,8 @@ networks:
 
 volumes:
     es-data:
+    kafka-data:
+    airflow_pgdata:
+    mlflow_pgdata:
+    zookeeper-data:
+    zookeeper-logs:

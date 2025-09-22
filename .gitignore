@@ -1,2 +1,5 @@
 /kafka-data
 /mongo-data
+/es-data
+/mlflow_pgdata
+/logs
