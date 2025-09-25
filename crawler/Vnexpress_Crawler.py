@@ -79,13 +79,7 @@ def run_streaming(rss_feeds, poll_interval=60):
                 for doc in docs:
                     try:
                         collection.insert_one(doc)
-                        
-                        # Remove _id field before sending to Kafka
-                        doc_for_kafka = doc.copy()
-                        if '_id' in doc_for_kafka:
-                            del doc_for_kafka['_id']
-                        
-                        producer.send(KAFKA_TOPIC, value=doc_for_kafka)
+                        producer.send(KAFKA_TOPIC, value=doc)
                         logging.info(f"✅ Sent [vnexpress/{category}] {doc['title']}")
                     except errors.DuplicateKeyError:
                         logging.debug(f"⚠️ Duplicate skipped: {doc['url']}")

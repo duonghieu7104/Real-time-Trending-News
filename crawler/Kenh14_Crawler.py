@@ -74,8 +74,97 @@ def clean_description(desc: str) -> str:
 # ================= RSS Feeds Config =================
 RSS_FEEDS = {
     "kenh14": {
+        # Trang chủ
+        "home": "https://kenh14.vn/rss/home.rss",
+        
+        # Star
         "star": "https://kenh14.vn/star.rss",
-        "musics": "https://kenh14.vn/musics.rss",
+        "hoi-ban-than-showbiz": "https://kenh14.vn/rss/star/hoi-ban-than-showbiz.rss",
+        "sao-viet": "https://kenh14.vn/rss/star/sao-viet.rss",
+        "tv-show": "https://kenh14.vn/rss/star/tv-show.rss",
+        
+        # Học đường
+        "hoc-duong": "https://kenh14.vn/hoc-duong.rss",
+        "nhan-vat": "https://kenh14.vn/rss/hoc-duong/nhan-vat.rss",
+        "du-hoc": "https://kenh14.vn/rss/hoc-duong/du-hoc.rss",
+        "ban-tin-46": "https://kenh14.vn/rss/hoc-duong/ban-tin-46.rss",
+        
+        # Beauty & Fashion
+        "beauty-fashion": "https://kenh14.vn/beauty-fashion.rss",
+        "star-style": "https://kenh14.vn/rss/beauty-fashion/star-style.rss",
+        "lam-dep": "https://kenh14.vn/rss/beauty-fashion/lam-dep.rss",
+        "thoi-trang": "https://kenh14.vn/rss/beauty-fashion/thoi-trang.rss",
+        
+        # Cine
+        "cine": "https://kenh14.vn/cine.rss",
+        "phim-chieu-rap": "https://kenh14.vn/rss/cine/phim-chieu-rap.rss",
+        "phim-viet-nam": "https://kenh14.vn/rss/cine/phim-viet-nam.rss",
+        "series-truyen-hinh": "https://kenh14.vn/rss/cine/series-truyen-hinh.rss",
+        "hoa-ngu-han-quoc": "https://kenh14.vn/rss/cine/hoa-ngu-han-quoc.rss",
+        
+        # Musik
+        "musik": "https://kenh14.vn/musik.rss",
+        "au-my": "https://kenh14.vn/rss/musik/au-my.rss",
+        "chau-a": "https://kenh14.vn/rss/musik/chau-a.rss",
+        "viet-nam": "https://kenh14.vn/rss/musik/viet-nam.rss",
+        
+        # Thế Giới Đó Đây
+        "the-gioi-do-day": "https://kenh14.vn/the-gioi-do-day.rss",
+        "chum-anh": "https://kenh14.vn/rss/the-gioi-do-day/chum-anh.rss",
+        "kham-pha": "https://kenh14.vn/rss/the-gioi-do-day/kham-pha.rss",
+        "di": "https://kenh14.vn/rss/the-gioi-do-day/di.rss",
+        
+        # Đời sống
+        "doi-song": "https://kenh14.vn/doi-song.rss",
+        "mommy-ez": "https://kenh14.vn/rss/doi-song/mommy-ez.rss",
+        "house-n-home": "https://kenh14.vn/rss/doi-song/house-n-home.rss",
+        "nhan-vat-doi-song": "https://kenh14.vn/rss/doi-song/nhan-vat.rss",
+        
+        # Tek-life
+        "tek-life": "https://kenh14.vn/tek-life.rss",
+        "metaverse": "https://kenh14.vn/rss/tek-life/metaverse.rss",
+        "how-to": "https://kenh14.vn/rss/tek-life/how-to.rss",
+        "wow": "https://kenh14.vn/rss/tek-life/wow.rss",
+        "2-mall": "https://kenh14.vn/rss/tek-life/2-mall.rss",
+        
+        # Money-Z
+        "money-z": "https://kenh14.vn/money-z.rss",
+        
+        # Xem Mua Luôn
+        "xem-mua-luon": "https://kenh14.vn/xem-mua-luon.rss",
+        "mommy-mua-di": "https://kenh14.vn/rss/xem-mua-luon/mommy-mua-di.rss",
+        "thoi-trang-mua": "https://kenh14.vn/rss/xem-mua-luon/thoi-trang.rss",
+        "dep": "https://kenh14.vn/rss/xem-mua-luon/dep.rss",
+        
+        # Sport
+        "sport": "https://kenh14.vn/sport.rss",
+        "bong-da": "https://kenh14.vn/rss/sport/bong-da.rss",
+        "hau-truong": "https://kenh14.vn/rss/sport/hau-truong.rss",
+        "pickleball": "https://kenh14.vn/rss/sport/pickleball.rss",
+        "esports": "https://kenh14.vn/rss/sport/esports.rss",
+        
+        # Ăn - Quẩy - Đi
+        "an-quay-di": "https://kenh14.vn/an-quay-di.rss",
+        "an": "https://kenh14.vn/rss/an-quay-di/an.rss",
+        "quay": "https://kenh14.vn/rss/an-quay-di/quay.rss",
+        "di-an-quay": "https://kenh14.vn/rss/an-quay-di/di.rss",
+        
+        # Xã hội
+        "xa-hoi": "https://kenh14.vn/xa-hoi.rss",
+        "phap-luat": "https://kenh14.vn/rss/xa-hoi/phap-luat.rss",
+        "nong-tren-mang": "https://kenh14.vn/rss/xa-hoi/nong-tren-mang.rss",
+        "song-xanh": "https://kenh14.vn/rss/xa-hoi/song-xanh.rss",
+        
+        # Sức khỏe
+        "suc-khoe": "https://kenh14.vn/suc-khoe.rss",
+        "tin-tuc-suc-khoe": "https://kenh14.vn/rss/suc-khoe/tin-tuc.rss",
+        "khoe-dep": "https://kenh14.vn/rss/suc-khoe/khoe-dep.rss",
+        "gioi-tinh": "https://kenh14.vn/rss/suc-khoe/gioi-tinh.rss",
+        "cac-benh": "https://kenh14.vn/rss/suc-khoe/cac-benh.rss",
+        "dinh-duong": "https://kenh14.vn/rss/suc-khoe/dinh-duong.rss",
+        
+        # Xem Ăn Chơi
+        "xem-an-choi": "https://kenh14.vn/xem-an-choi.rss"
     }
 }
 
@@ -141,8 +230,14 @@ def run_streaming(poll_interval=60):
         return
 
     while True:
+        feed_count = 0
+        total_feeds = sum(len(categories) for categories in RSS_FEEDS.values())
+        
         for source, categories in RSS_FEEDS.items():
             for category, url in categories.items():
+                feed_count += 1
+                logging.info(f"🔄 Processing feed {feed_count}/{total_feeds}: {category}")
+                
                 try:
                     docs = crawl_rss(url, source, category)
                     logging.info(f"📦 Found {len(docs)} articles to process")
@@ -173,9 +268,14 @@ def run_streaming(poll_interval=60):
 
                 except Exception as e:
                     logging.error(f"❌ Error crawling {url}: {e}")
+                
+                # Add delay between RSS feeds to be respectful to servers
+                if feed_count < total_feeds:  # Don't delay after the last feed
+                    logging.info(f"⏳ Waiting 2 seconds before next RSS feed...")
+                    time.sleep(2)
 
         producer.flush()
-        logging.info(f"⏰ Waiting {poll_interval} seconds before next crawl...")
+        logging.info(f"⏰ Waiting {poll_interval} seconds before next crawl cycle...")
         time.sleep(poll_interval)
 
 # ================= Run =================
