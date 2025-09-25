@@ -37,4 +37,6 @@ RUN pip install --no-cache-dir \
     webdriver-manager \
     minio \
     kafka-python \
-    pymongo
+    pymongo \
+    beautifulsoup4 \
+    feedparser
