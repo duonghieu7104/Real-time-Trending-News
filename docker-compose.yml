@@ -32,6 +32,7 @@ services:
             - ./data:/app/data
             - ./src:/app/src
             - ./model:/app/model
+            - ./processor:/app/processor
         networks:
             - trending_news
 
@@ -55,6 +56,7 @@ services:
             - ./data:/app/data
             - ./src:/app/src
             - ./model:/app/model
+            - ./processor:/app/processor
         networks:
             - trending_news
 
@@ -203,9 +205,11 @@ services:
             - ./dags:/opt/airflow/dags
             - ./requirements.txt:/requirements.txt
             - ./crawler:/opt/airflow/crawler
+            - ./model:/app/model
+            - ./processor:/opt/airflow/processor
         ports:
             - "8085:8080"
-        command: bash -c "pip install --no-cache-dir -r /requirements.txt && airflow webserver"
+        command: airflow webserver
         depends_on:
             - airflow-init
         networks:
@@ -226,7 +230,9 @@ services:
             - ./dags:/opt/airflow/dags
             - ./requirements.txt:/requirements.txt
             - ./crawler:/opt/airflow/crawler
-        command: bash -c "pip install --no-cache-dir -r /requirements.txt && airflow scheduler"
+            - ./model:/app/model
+            - ./processor:/opt/airflow/processor
+        command: airflow scheduler
         depends_on:
             - airflow-init
         networks:

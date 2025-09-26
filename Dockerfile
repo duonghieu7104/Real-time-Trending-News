@@ -31,12 +31,8 @@ RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd6
 
 USER airflow
 
-# Install selenium, webdriver-manager and extra Python libs
-RUN pip install --no-cache-dir \
-    selenium \
-    webdriver-manager \
-    minio \
-    kafka-python \
-    pymongo \
-    beautifulsoup4 \
-    feedparser
+# Copy requirements file
+COPY requirements.txt /requirements.txt
+
+# Install all Python dependencies during build
+RUN pip install --no-cache-dir -r /requirements.txt

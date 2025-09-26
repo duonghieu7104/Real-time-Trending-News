@@ -28,7 +28,7 @@ default_args = {
 
 def check_model_availability():
     """Check if ONNX model files are available"""
-    model_path = "/opt/airflow/model/onnx"
+    model_path = "/app/model/onnx"
     required_files = ["model.onnx", "config.json", "tokenizer.json"]
     
     for file in required_files:
@@ -72,9 +72,10 @@ def start_spark_embedding_processor():
     try:
         logger.info("🚀 Starting Spark streaming embedding processor...")
         
-        # Run Spark streaming job
+        # Run Spark streaming job in Spark container
         result = subprocess.run([
-            "python3", "/opt/airflow/processor/spark_embedding_processor.py"
+            "docker", "exec", "spark-master-v4", 
+            "python3", "/app/processor/spark_embedding_processor.py"
         ], 
         stdout=subprocess.PIPE, 
         stderr=subprocess.PIPE, 

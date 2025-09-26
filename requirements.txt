@@ -15,4 +15,7 @@ pandas
 pyspark
 # Additional ML dependencies
 scikit-learn
+# Web scraping dependencies
+beautifulsoup4
+feedparser
 
