@@ -31,6 +31,7 @@ services:
         volumes:
             - ./data:/app/data
             - ./src:/app/src
+            - ./model:/app/model
         networks:
             - trending_news
 
@@ -53,6 +54,7 @@ services:
         volumes:
             - ./data:/app/data
             - ./src:/app/src
+            - ./model:/app/model
         networks:
             - trending_news
 
@@ -68,6 +70,7 @@ services:
         volumes:
             - ./data:/home/jovyan/data
             - ./src:/home/jovyan/src
+            - ./model:/home/jovyan/model
         networks:
             - trending_news
 
