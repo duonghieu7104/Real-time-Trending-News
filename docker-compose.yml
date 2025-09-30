@@ -33,6 +33,7 @@ services:
             - ./src:/app/src
             - ./model:/app/model
             - ./processor:/app/processor
+            - ./jars:/opt/spark/jars
         networks:
             - trending_news
 
@@ -57,6 +58,7 @@ services:
             - ./src:/app/src
             - ./model:/app/model
             - ./processor:/app/processor
+            - ./jars:/opt/spark/jars
         networks:
             - trending_news
 
@@ -198,6 +200,9 @@ services:
             AIRFLOW__CORE__EXECUTOR: LocalExecutor
             AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres-v4:5432/airflow
             AIRFLOW__WEBSERVER__SECRET_KEY: super_fixed_secret_12345
+            AIRFLOW__WEBSERVER__BASE_URL: http://localhost:8085
+            AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: 8793
+            AIRFLOW__LOGGING__WORKER_LOG_SERVER_HOST: localhost 
             PYTHONPATH: /opt/airflow/crawler
         volumes:
             - ./logs:/opt/airflow/logs
@@ -207,6 +212,7 @@ services:
             - ./crawler:/opt/airflow/crawler
             - ./model:/app/model
             - ./processor:/opt/airflow/processor
+            - /var/run/docker.sock:/var/run/docker.sock
         ports:
             - "8085:8080"
         command: airflow webserver
@@ -224,6 +230,9 @@ services:
             AIRFLOW__CORE__EXECUTOR: LocalExecutor
             AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres-v4:5432/airflow
             AIRFLOW__WEBSERVER__SECRET_KEY: super_fixed_secret_12345
+            AIRFLOW__WEBSERVER__BASE_URL: http://localhost:8085
+            AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: 8793
+            AIRFLOW__LOGGING__WORKER_LOG_SERVER_HOST: localhost
         volumes:
             - ./logs:/opt/airflow/logs
             - ./plugins:/opt/airflow/plugins
@@ -232,6 +241,7 @@ services:
             - ./crawler:/opt/airflow/crawler
             - ./model:/app/model
             - ./processor:/opt/airflow/processor
+            - /var/run/docker.sock:/var/run/docker.sock
         command: airflow scheduler
         depends_on:
             - airflow-init

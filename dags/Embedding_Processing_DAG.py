@@ -72,30 +72,36 @@ def start_spark_embedding_processor():
     try:
         logger.info("🚀 Starting Spark streaming embedding processor...")
         
-        # Run Spark streaming job in Spark container
-        result = subprocess.run([
-            "docker", "exec", "spark-master-v4", 
-            "python3", "/app/processor/spark_embedding_processor.py"
-        ], 
-        stdout=subprocess.PIPE, 
-        stderr=subprocess.PIPE, 
-        text=True,
-        timeout=300  # 5 minutes timeout
-        )
+        # Start Spark streaming job in background (use spark-submit to avoid Java gateway issues)
+        subprocess.Popen([
+            "docker", "exec", "-d", "spark-master-v4",
+            "bash", "-lc",
+            "nohup spark-submit --master local[*] --conf spark.jars=/opt/spark/jars/spark-sql-kafka-0-10_2.12-3.5.0.jar,/opt/spark/jars/kafka-clients-3.5.0.jar,/opt/spark/jars/spark-token-provider-kafka-0-10_2.12-3.5.0.jar,/opt/spark/jars/commons-pool2-2.11.1.jar /app/processor/spark_embedding_processor.py > /tmp/embedding_processor.out 2>&1 &"
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True)
         
-        logger.info(f"📜 STDOUT: {result.stdout}")
-        if result.stderr:
-            logger.warning(f"📜 STDERR: {result.stderr}")
+        # Wait a bit then verify inside container
+        import time
+        time.sleep(15)
+        check = subprocess.run([
+            "docker", "exec", "spark-master-v4", "bash", "-lc",
+            "pgrep -af 'spark-submit|spark_embedding_processor.py' || true"
+        ], capture_output=True, text=True)
+        if not check.stdout.strip():
+            # Show last logs to help debug
+            logs = subprocess.run([
+                "docker", "exec", "spark-master-v4", "bash", "-lc",
+                "tail -n 200 /tmp/embedding_processor.out 2>/dev/null || true"
+            ], capture_output=True, text=True)
+            logger.error("❌ Spark processor appears not running")
+            logger.error(f"📜 LAST LOGS: {logs.stdout}")
+            raise Exception("Spark processor failed to start")
         
-        if result.returncode != 0:
-            raise Exception(f"Spark processor exited with code {result.returncode}")
-        
-        logger.info("✅ Spark streaming processor started successfully")
+        logger.info("✅ Spark streaming processor started successfully in background")
         return True
         
-    except subprocess.TimeoutExpired:
-        logger.warning("⏰ Spark processor startup timed out, but may still be running")
-        return True
     except Exception as e:
         logger.error(f"❌ Failed to start Spark processor: {e}")
         raise e
@@ -105,29 +111,37 @@ def start_processed_data_consumer():
     try:
         logger.info("🚀 Starting processed_data consumer...")
         
-        # Run consumer
-        result = subprocess.run([
-            "python3", "/opt/airflow/processor/processed_data_consumer.py"
-        ], 
-        stdout=subprocess.PIPE, 
-        stderr=subprocess.PIPE, 
-        text=True,
-        timeout=300  # 5 minutes timeout
-        )
+        # Start consumer in background (no timeout)
+        process = subprocess.Popen([
+            "bash", "-lc",
+            "nohup python3 /opt/airflow/processor/processed_data_consumer.py > /opt/airflow/logs/processed_consumer.out 2>&1 & echo $!"
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True)
         
-        logger.info(f"📜 STDOUT: {result.stdout}")
-        if result.stderr:
-            logger.warning(f"📜 STDERR: {result.stderr}")
-        
-        if result.returncode != 0:
-            raise Exception(f"Consumer exited with code {result.returncode}")
+        # Wait a bit to check if it starts successfully
+        import time
+        time.sleep(8)
+        pid_output, _ = process.communicate(timeout=5)
+        pid = pid_output.strip()
+        # Verify by PID or by process name
+        verify = subprocess.run([
+            "bash", "-lc",
+            f"ps -p {pid} -o pid,cmd= 2>/dev/null || pgrep -af processed_data_consumer.py || true"
+        ], capture_output=True, text=True)
+        if not verify.stdout.strip():
+            last = subprocess.run([
+                "bash", "-lc",
+                "tail -n 200 /opt/airflow/logs/processed_consumer.out 2>/dev/null || true"
+            ], capture_output=True, text=True)
+            logger.error("❌ Consumer appears not running")
+            logger.error(f"📜 LAST LOGS: {last.stdout}")
+            raise Exception("Consumer failed to start")
         
         logger.info("✅ Processed data consumer started successfully")
         return True
         
-    except subprocess.TimeoutExpired:
-        logger.warning("⏰ Consumer startup timed out, but may still be running")
-        return True
     except Exception as e:
         logger.error(f"❌ Failed to start consumer: {e}")
         raise e

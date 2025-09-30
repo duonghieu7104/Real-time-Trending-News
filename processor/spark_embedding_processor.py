@@ -149,7 +149,7 @@ def create_spark_session():
     """Create Spark session"""
     return SparkSession.builder \
         .appName("ONNXEmbeddingProcessor") \
-        .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0") \
+        .config("spark.jars", "/opt/spark/jars/spark-sql-kafka-0-10_2.12-3.5.0.jar,/opt/spark/jars/kafka-clients-3.5.0.jar,/opt/spark/jars/spark-token-provider-kafka-0-10_2.12-3.5.0.jar,/opt/spark/jars/commons-pool2-2.11.1.jar")\
         .config("spark.sql.adaptive.enabled", "true") \
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
@@ -176,40 +176,56 @@ def create_kafka_producer():
         return None
 
 
+def _iter_rows_as_dicts(df, chunk_size: int = 20):
+    """Yield rows as dictionaries in chunks to control memory usage."""
+    buffer = []
+    for row in df.toLocalIterator():
+        buffer.append(row.asDict(recursive=True))
+        if len(buffer) >= chunk_size:
+            yield buffer
+            buffer = []
+    if buffer:
+        yield buffer
+
+
 def process_batch_with_embeddings(batch_df, batch_id):
-    """Process each batch of data with embeddings and send to processed_data topic"""
+    """Process each batch of data with embeddings and send to processed_data topic (memory-safe)."""
     try:
-        # Convert to list of dictionaries
-        news_data = batch_df.toPandas().to_dict('records')
-        
-        if news_data:
-            logger.info(f"📥 Processing batch {batch_id} with {len(news_data)} articles")
-            
-            # Initialize processor
-            processor = ONNXEmbeddingProcessor("/app/model/onnx")
-            
-            # Process with embeddings
-            processed_data = processor.process_news_batch(news_data)
-            
-            # Send to processed_data topic
-            if processed_data:
-                producer = create_kafka_producer()
-                if producer:
-                    for item in processed_data:
-                        try:
-                            producer.send('processed_data', value=item)
-                            logger.info(f"📤 Sent to processed_data topic: {item.get('title', 'No title')}")
-                        except Exception as e:
-                            logger.error(f"❌ Error sending to Kafka: {e}")
-                    
-                    producer.flush()
-                    producer.close()
-                    logger.info(f"✅ Sent {len(processed_data)} processed articles to processed_data topic")
-                else:
-                    logger.error("❌ Cannot send to Kafka - producer not available")
-            
-            logger.info(f"✅ Completed processing batch {batch_id}")
-            
+        total_processed = 0
+
+        # Initialize once per batch on driver
+        processor = ONNXEmbeddingProcessor("/app/model/onnx")
+        producer = create_kafka_producer()
+
+        if producer is None:
+            logger.error("❌ Cannot create Kafka producer")
+            return
+
+        minimal_df = batch_df.select(
+            col("title"), col("content"), col("description"), col("url"),
+            col("source"), col("published_at"), col("collected_at"), col("category")
+        )
+
+        for chunk in _iter_rows_as_dicts(minimal_df, chunk_size=20):
+            logger.info(f"📥 Processing batch {batch_id} chunk with {len(chunk)} articles")
+            processed_data = processor.process_news_batch(chunk)
+
+            for item in processed_data:
+                try:
+                    producer.send('processed_data', value=item)
+                except Exception as e:
+                    logger.error(f"❌ Error sending to Kafka: {e}")
+
+            total_processed += len(processed_data)
+
+        try:
+            producer.flush()
+            producer.close()
+        except Exception:
+            pass
+
+        logger.info(f"✅ Completed batch {batch_id} - sent {total_processed} articles")
+
     except Exception as e:
         logger.error(f"❌ Error processing batch {batch_id}: {e}")
 
@@ -240,7 +256,8 @@ def main():
             .format("kafka") \
             .option("kafka.bootstrap.servers", "kafka-v4:29092") \
             .option("subscribe", "raw_news") \
-            .option("startingOffsets", "latest") \
+            .option("startingOffsets", "earliest") \
+            .option("maxOffsetsPerTrigger", "50") \
             .load()
         
         # Parse JSON messages

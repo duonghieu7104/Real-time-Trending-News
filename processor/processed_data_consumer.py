@@ -37,9 +37,9 @@ def create_kafka_consumer():
                 enable_auto_commit=True,
                 group_id="processed-data-consumer-group",
                 value_deserializer=lambda x: json.loads(x.decode("utf-8")),
-                consumer_timeout_ms=30000,
-                request_timeout_ms=15000,
-                session_timeout_ms=10000
+                request_timeout_ms=30000,
+                session_timeout_ms=15000,
+                max_poll_interval_ms=300000
             )
             logger.info("✅ Kafka consumer connected successfully!")
             return consumer

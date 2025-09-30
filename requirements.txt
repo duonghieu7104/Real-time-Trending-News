@@ -5,6 +5,7 @@ minio
 apache-airflow
 apache-airflow-providers-http
 apache-airflow-providers-postgres
+pymongo
 # ONNX and ML dependencies
 onnxruntime
 transformers
