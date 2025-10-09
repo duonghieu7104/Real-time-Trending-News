@@ -1,7 +1,4 @@
-"""
-Consumer for processed_data topic
-Gets data from processed_data topic and saves to MongoDB
-"""
+
 
 import json
 import logging
