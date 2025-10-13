@@ -1,28 +1,46 @@
-# Dockerfile cho Spark + Jupyter Notebook
-FROM jupyter/pyspark-notebook:latest
+FROM apache/spark:3.5.0-scala2.12-java11-python3-ubuntu
 
-# Cài đặt Python packages cần thiết - install in batches to avoid timeout
-RUN pip install --no-cache-dir --timeout=300 \
-    pyspark \
-    findspark \
-    boto3 \
-    kafka-python \
-    pymongo
+# Switch to root to install packages
+USER root
 
-RUN pip install --no-cache-dir --timeout=300 \
-    onnxruntime \
-    transformers
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-dev \
+    build-essential \
+    gcc \
+    gfortran \
+    libopenblas-dev \
+    liblapack-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir --timeout=300 \
-    torch --index-url https://download.pytorch.org/whl/cpu
+# Install Python packages for ONNX processing
+RUN pip3 install --no-cache-dir \
+    numpy==1.24.3 \
+    pandas==2.0.3 \
+    onnxruntime==1.16.0 \
+    transformers==4.33.0 \
+    torch==2.0.1 \
+    pymongo==4.5.0 \
+    kafka-python==2.0.2 \
+    pyvi==0.1.1
 
-RUN pip install --no-cache-dir --timeout=300 \
-    numpy \
-    pandas \
-    scikit-learn
+# Copy our files
+COPY processor/ /opt/spark/work-dir/processor/
+COPY model/ /opt/spark/work-dir/model/
+COPY jars/ /opt/spark/work-dir/jars/
+COPY entrypoint.sh /opt/entrypoint.sh
 
-# Optional: set timezone hoặc locale nếu cần
-ENV TZ=Asia/Ho_Chi_Minh
+# Set proper permissions
+RUN chmod -R 755 /opt/spark/work-dir/processor /opt/spark/work-dir/model /opt/spark/work-dir/jars
+RUN chmod +x /opt/entrypoint.sh
 
-# Chỉ định thư mục làm việc (giữ mặc định Jupyter Notebook)
-WORKDIR /home/jovyan/work
+# Switch back to spark user
+USER spark
+
+# Set working directory
+WORKDIR /opt/spark/work-dir
+
+# Set entrypoint
+ENTRYPOINT ["/opt/entrypoint.sh"]

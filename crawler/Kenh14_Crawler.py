@@ -4,8 +4,9 @@ import json
 from datetime import datetime
 import time
 import logging
-from pymongo import MongoClient, errors
 from bs4 import BeautifulSoup
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ================= Logging =================
 logging.basicConfig(
@@ -48,17 +49,8 @@ def create_kafka_producer():
     
     return None
 
-# ================= MongoDB Config =================
-MONGO_URI = "mongodb://mongo-v4:27017"
-DB_NAME = "news_db"
-COLLECTION_NAME = "articles"
-
-mongo_client = MongoClient(MONGO_URI)
-db = mongo_client[DB_NAME]
-collection = db[COLLECTION_NAME]
-
-# Tạo unique index cho URL
-collection.create_index("url", unique=True)
+USER_AGENT = "Mozilla/5.0 (compatible; NewsCrawler/1.0; +https://example.com/bot)"
+REQUEST_TIMEOUT = 8
 
 # ================= Helper =================
 def format_datetime(dt: datetime):
@@ -173,7 +165,9 @@ def crawl_rss(url, source, category):
     logging.info(f"🔍 Crawling RSS feed: {url}")
     
     try:
-        feed = feedparser.parse(url)
+        resp = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        feed = feedparser.parse(resp.content)
         logging.info(f"📊 RSS Feed Status: {feed.status if hasattr(feed, 'status') else 'Unknown'}")
         logging.info(f"📰 Number of entries found: {len(feed.entries) if hasattr(feed, 'entries') else 0}")
         
@@ -184,8 +178,9 @@ def crawl_rss(url, source, category):
         docs = []
         for i, entry in enumerate(feed.entries):
             try:
-                # Debug: Print entry data
-                logging.info(f"📄 Processing entry {i+1}: {entry.get('title', 'No title')}")
+                # Debug: Print entry data (reduced verbosity)
+                if i < 3:
+                    logging.info(f"📄 Processing entry {i+1}: {entry.get('title', 'No title')}")
                 
                 # Check if entry has required fields
                 if not hasattr(entry, 'link') or not hasattr(entry, 'title'):
@@ -204,8 +199,8 @@ def crawl_rss(url, source, category):
                     "collected_at": format_datetime(datetime.now())
                 }
                 
-                # Debug: Print the document before adding
-                logging.info(f"📝 Document created: {doc['title']} from {doc['url']}")
+                if i < 2:
+                    logging.debug(f"📝 Document created: {doc['title']} from {doc['url']}")
                 docs.append(doc)
                 
             except Exception as e:
@@ -223,59 +218,37 @@ def crawl_rss(url, source, category):
 def run_streaming(poll_interval=60):
     logging.info(f"🚀 Start crawling Kenh14 RSS feeds every {poll_interval}s ...")
     
-    # Create Kafka producer with retry mechanism
     producer = create_kafka_producer()
     if not producer:
         logging.error("❌ Cannot start crawler without Kafka connection")
         return
 
     while True:
-        feed_count = 0
-        total_feeds = sum(len(categories) for categories in RSS_FEEDS.values())
-        
-        for source, categories in RSS_FEEDS.items():
-            for category, url in categories.items():
-                feed_count += 1
-                logging.info(f"🔄 Processing feed {feed_count}/{total_feeds}: {category}")
-                
+        tasks = []
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            for source, categories in RSS_FEEDS.items():
+                for category, url in categories.items():
+                    tasks.append(executor.submit(crawl_rss, url, source, category))
+
+            total_docs = 0
+            for future in as_completed(tasks):
                 try:
-                    docs = crawl_rss(url, source, category)
-                    logging.info(f"📦 Found {len(docs)} articles to process")
-                    
+                    docs = future.result()
+                    total_docs += len(docs)
                     for doc in docs:
                         try:
-                            # Debug: Print the document data before processing
-                            logging.info(f"🔄 Processing article: {doc['title']}")
-                            logging.info(f"📄 Article data: {doc}")
-                            
-                            # Insert Mongo trước để check trùng
-                            result = collection.insert_one(doc)
-                            logging.info(f"💾 Inserted to MongoDB: {doc['title']}")
-
-                            # Remove _id field before sending to Kafka (ObjectId is not JSON serializable)
-                            doc_for_kafka = doc.copy()
-                            if '_id' in doc_for_kafka:
-                                del doc_for_kafka['_id']
-                            
-                            # Nếu insert thành công => gửi Kafka
-                            producer.send(KAFKA_TOPIC, value=doc_for_kafka)
-                            logging.info(f"📤 Sent to Kafka [{source}/{category}] {doc['title']}")
-
-                        except errors.DuplicateKeyError:
-                            logging.debug(f"⚠️ Duplicate skipped: {doc['url']}")
+                            producer.send(KAFKA_TOPIC, value=doc)
                         except Exception as e:
-                            logging.error(f"❌ Error processing article {doc.get('title', 'Unknown')}: {e}")
-
+                            logging.error(f"❌ Kafka send error: {e}")
                 except Exception as e:
-                    logging.error(f"❌ Error crawling {url}: {e}")
-                
-                # Add delay between RSS feeds to be respectful to servers
-                if feed_count < total_feeds:  # Don't delay after the last feed
-                    logging.info(f"⏳ Waiting 2 seconds before next RSS feed...")
-                    time.sleep(2)
+                    logging.error(f"❌ Feed task error: {e}")
 
-        producer.flush()
-        logging.info(f"⏰ Waiting {poll_interval} seconds before next crawl cycle...")
+        try:
+            producer.flush()
+        except Exception:
+            pass
+
+        logging.info(f"✅ Cycle completed. Sent ~{total_docs} articles to Kafka. ⏰ Next in {poll_interval}s")
         time.sleep(poll_interval)
 
 # ================= Run =================

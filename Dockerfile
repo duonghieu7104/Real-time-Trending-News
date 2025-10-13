@@ -1,38 +1,21 @@
-FROM apache/airflow:2.9.3-python3.11
+FROM apache/airflow:2.6.3-python3.11
 
-
+# Install OS utilities required by DAG helper commands (e.g., pgrep)
 USER root
-
-# Install dependencies for Chrome
-RUN apt-get update && apt-get install -y \
-    wget \
-    unzip \
-    libglib2.0-0 \
-    libnss3 \
-    libgconf-2-4 \
-    libxi6 \
-    libxrandr2 \
-    libxss1 \
-    libxcursor1 \
-    libasound2 \
-    fonts-liberation \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libgtk-3-0 \
-    libx11-6 \
-    libxcb1 \
-    xdg-utils \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    procps \
+    psmisc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Google Chrome stable
-RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && apt-get update && apt-get install -y ./google-chrome-stable_current_amd64.deb \
-    && rm google-chrome-stable_current_amd64.deb
-
+# Install only essential Python packages for Airflow as airflow user
 USER airflow
+RUN pip install --no-cache-dir \
+    psycopg2-binary==2.9.7 \
+    pymongo==4.5.0 \
+    kafka-python==2.0.2 \
+    requests==2.31.0 \
+    feedparser==6.0.10 \
+    beautifulsoup4==4.12.2
 
-# Copy requirements file
-COPY requirements.txt /requirements.txt
-
-# Install all Python dependencies during build
-RUN pip install --no-cache-dir -r /requirements.txt
+# Set working directory
+WORKDIR /opt/airflow

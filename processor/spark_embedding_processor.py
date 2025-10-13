@@ -18,6 +18,17 @@ from kafka import KafkaProducer
 import onnxruntime as ort
 from transformers import AutoTokenizer
 
+# Optional Vietnamese word segmentation
+VN_WORDSEG_ENABLED = os.environ.get("VN_WORDSEG", "0") == "1"
+try:
+    if VN_WORDSEG_ENABLED:
+        from pyvi.ViTokenizer import tokenize as vi_tokenize
+    else:
+        vi_tokenize = None
+except Exception:
+    vi_tokenize = None
+    VN_WORDSEG_ENABLED = False
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,8 +51,25 @@ class ONNXEmbeddingProcessor:
                 providers=['CPUExecutionProvider']
             )
             
-            # Load tokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+            # Load tokenizer with fallback options
+            self.tokenizer = None
+            tokenizer_options = [
+                "vinai/phobert-base",
+                "xlm-roberta-base", 
+                self.model_path
+            ]
+            
+            for tokenizer_name in tokenizer_options:
+                try:
+                    self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+                    logger.info(f"✅ Tokenizer loaded from {tokenizer_name}")
+                    break
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to load tokenizer from {tokenizer_name}: {e}")
+                    continue
+            
+            if self.tokenizer is None:
+                raise Exception("Failed to load any tokenizer")
             
             logger.info("✅ ONNX model and tokenizer loaded successfully")
             
@@ -57,6 +85,14 @@ class ONNXEmbeddingProcessor:
         # Basic text cleaning
         text = text.strip()
         text = " ".join(text.split())
+        
+        # Optional Vietnamese word segmentation (tokenize with spaces)
+        if VN_WORDSEG_ENABLED and vi_tokenize is not None:
+            try:
+                text = vi_tokenize(text)
+            except Exception:
+                # If segmentation fails, use the cleaned text
+                pass
         
         # Truncate if too long
         if len(text) > 8000:
@@ -145,11 +181,13 @@ class ONNXEmbeddingProcessor:
             return news_data  # Return original data if processing fails
 
 
-def create_spark_session():
-    """Create Spark session"""
-    return SparkSession.builder \
-        .appName("ONNXEmbeddingProcessor") \
-        .config("spark.jars", "/opt/spark/jars/spark-sql-kafka-0-10_2.12-3.5.0.jar,/opt/spark/jars/kafka-clients-3.5.0.jar,/opt/spark/jars/spark-token-provider-kafka-0-10_2.12-3.5.0.jar,/opt/spark/jars/commons-pool2-2.11.1.jar")\
+def create_spark_session(master_url=None):
+    """Create Spark session. If master_url is None, do not override spark-submit master."""
+    builder = SparkSession.builder.appName("ONNXEmbeddingProcessor") 
+    if master_url:
+        builder = builder.master(master_url)
+    return builder \
+        .config("spark.jars", "/opt/spark/work-dir/jars/spark-sql-kafka-0-10_2.12-3.5.0.jar,/opt/spark/work-dir/jars/kafka-clients-3.5.0.jar,/opt/spark/work-dir/jars/spark-token-provider-kafka-0-10_2.12-3.5.0.jar,/opt/spark/work-dir/jars/commons-pool2-2.11.1.jar")\
         .config("spark.sql.adaptive.enabled", "true") \
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
@@ -194,7 +232,7 @@ def process_batch_with_embeddings(batch_df, batch_id):
         total_processed = 0
 
         # Initialize once per batch on driver
-        processor = ONNXEmbeddingProcessor("/app/model/onnx")
+        processor = ONNXEmbeddingProcessor("/opt/spark/work-dir/model/embedding")
         producer = create_kafka_producer()
 
         if producer is None:
@@ -232,11 +270,18 @@ def process_batch_with_embeddings(batch_df, batch_id):
 
 def main():
     """Main function to run the Spark streaming processor"""
-    logger.info("🚀 Starting Spark Streaming ONNX Embedding Processor...")
+    import argparse
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--master", dest="master", default=None)
+    # Allow unknown args so spark-submit extras don't break parsing
+    args, _ = parser.parse_known_args()
+    master_url = args.master
+    
+    logger.info(f"🚀 Starting Spark Streaming ONNX Embedding Processor with master: {master_url}")
     
     try:
-        # Create Spark session
-        spark = create_spark_session()
+        # Create Spark session (do not override if spark-submit provided master)
+        spark = create_spark_session(master_url)
         
         # Define schema for Kafka messages
         schema = StructType([

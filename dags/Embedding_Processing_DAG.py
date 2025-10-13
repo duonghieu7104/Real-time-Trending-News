@@ -28,7 +28,7 @@ default_args = {
 
 def check_model_availability():
     """Check if ONNX model files are available"""
-    model_path = "/app/model/onnx"
+    model_path = "/app/model"
     required_files = ["model.onnx", "config.json", "tokenizer.json"]
     
     for file in required_files:
@@ -72,11 +72,54 @@ def start_spark_embedding_processor():
     try:
         logger.info("🚀 Starting Spark streaming embedding processor...")
         
-        # Start Spark streaming job in background (use spark-submit to avoid Java gateway issues)
+        # First, ensure Spark containers are running
+        logger.info("🔧 Ensuring Spark containers are running...")
+        
+        # Check if spark-master is running, if not start it
+        check_master = subprocess.run([
+            "docker", "ps", "-q", "-f", "name=spark-master-v4"
+        ], capture_output=True, text=True)
+        
+        if not check_master.stdout.strip():
+            logger.info("📦 Starting Spark Master container...")
+            try:
+                # Try to start existing container
+                subprocess.run([
+                    "docker", "start", "spark-master-v4"
+                ], check=True, capture_output=True)
+                logger.info("✅ Spark Master started successfully")
+            except subprocess.CalledProcessError:
+                logger.warning("⚠️ Spark Master container not found or failed to start")
+                logger.info("💡 Please ensure Spark containers are created first")
+            import time
+            time.sleep(10)  # Wait for master to start
+        
+        # Check if spark-worker is running, if not start it
+        check_worker = subprocess.run([
+            "docker", "ps", "-q", "-f", "name=spark-worker-v4"
+        ], capture_output=True, text=True)
+        
+        if not check_worker.stdout.strip():
+            logger.info("📦 Starting Spark Worker container...")
+            try:
+                # Try to start existing container
+                subprocess.run([
+                    "docker", "start", "spark-worker-v4"
+                ], check=True, capture_output=True)
+                logger.info("✅ Spark Worker started successfully")
+            except subprocess.CalledProcessError:
+                logger.warning("⚠️ Spark Worker container not found or failed to start")
+                logger.info("💡 Please ensure Spark containers are created first")
+            import time
+            time.sleep(10)  # Wait for worker to start
+        
+        logger.info("✅ Spark containers are running")
+        
+        # Start Spark streaming job in background (run from Spark Master container)
         subprocess.Popen([
             "docker", "exec", "-d", "spark-master-v4",
             "bash", "-lc",
-            "nohup spark-submit --master local[*] --conf spark.jars=/opt/spark/jars/spark-sql-kafka-0-10_2.12-3.5.0.jar,/opt/spark/jars/kafka-clients-3.5.0.jar,/opt/spark/jars/spark-token-provider-kafka-0-10_2.12-3.5.0.jar,/opt/spark/jars/commons-pool2-2.11.1.jar /app/processor/spark_embedding_processor.py > /tmp/embedding_processor.out 2>&1 &"
+            "nohup spark-submit --master spark://spark-master:7077 --conf spark.jars=/opt/spark/work-dir/jars/spark-sql-kafka-0-10_2.12-3.5.0.jar,/opt/spark/work-dir/jars/kafka-clients-3.5.0.jar,/opt/spark/work-dir/jars/spark-token-provider-kafka-0-10_2.12-3.5.0.jar,/opt/spark/work-dir/jars/commons-pool2-2.11.1.jar /opt/spark/work-dir/processor/spark_embedding_processor.py > /tmp/embedding_processor.out 2>&1 &"
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
