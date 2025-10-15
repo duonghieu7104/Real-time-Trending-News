@@ -1,8 +1,1 @@
-
-docker exec -it airflow-webserver-v4 python /opt/airflow/crawler/Kenh14_Crawler.py
-docker exec -it airflow-webserver-v4 python /opt/airflow/crawler/RSS_Consumer.py
-
-
-
-vào http://localhost:8085/home
-run tất cả dag thì sẽ cào bài báo push vào topic `raw_news` -> mongo
+<img width="2288" height="1144" alt="trending-news" src="https://github.com/user-attachments/assets/8d78be32-6781-4990-9401-c0936180deea" />
