@@ -1,6 +1,8 @@
 # Dockerfile cho Spark + Jupyter Notebook
 FROM jupyter/pyspark-notebook:latest
 
+RUN pip install bertopic hdbscan umap-learn sentence-transformers elasticsearch 
+
 # Cài đặt Python packages cần thiết - install in batches to avoid timeout
 RUN pip install --no-cache-dir --timeout=300 \
     pyspark \
@@ -26,3 +28,4 @@ ENV TZ=Asia/Ho_Chi_Minh
 
 # Chỉ định thư mục làm việc (giữ mặc định Jupyter Notebook)
 WORKDIR /home/jovyan/work
+
