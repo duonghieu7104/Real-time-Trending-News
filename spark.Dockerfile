@@ -30,10 +30,13 @@ RUN pip3 install --no-cache-dir \
 COPY processor/ /opt/spark/work-dir/processor/
 COPY model/ /opt/spark/work-dir/model/
 COPY jars/ /opt/spark/work-dir/jars/
+COPY src/ /opt/spark/work-dir/src/
 COPY entrypoint.sh /opt/entrypoint.sh
 
+RUN sed -i 's/\r$//' /opt/entrypoint.sh
+
 # Set proper permissions
-RUN chmod -R 755 /opt/spark/work-dir/processor /opt/spark/work-dir/model /opt/spark/work-dir/jars
+RUN chmod -R 755 /opt/spark/work-dir/processor /opt/spark/work-dir/model /opt/spark/work-dir/jars /opt/spark/work-dir/src
 RUN chmod +x /opt/entrypoint.sh
 
 # Switch back to spark user
