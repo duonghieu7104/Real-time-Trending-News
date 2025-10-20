@@ -350,16 +350,43 @@ def process_batch(batch_df, batch_id):
     try:
         df_es = df_enriched.withColumn("@timestamp", col("processing_time"))
         
+        # Đảm bảo doc_id là unique
+        df_es = df_es.select(
+            col("doc_id"),
+            col("title"),
+            col("content"),
+            col("published_at"),
+            col("source"),
+            col("url"),
+            col("category"),
+            col("topic_id"),
+            col("topic_keywords"),
+            col("topic_score"),
+            col("sentiment"),
+            col("processing_time"),
+            col("@timestamp")
+        )
+        
+        # Cách 1: Dùng elasticsearch-spark connector (khuyến nghị)
         df_es.write \
             .format("org.elasticsearch.spark.sql") \
-            .option("es.resource", "news_enriched") \
+            .option("es.nodes", "elasticsearch") \
+            .option("es.port", "9200") \
+            .option("es.net.http.auth.user", "elastic") \
+            .option("es.net.http.auth.pass", "changeme") \
+            .option("es.resource", "news_enriched/_doc") \
             .option("es.mapping.id", "doc_id") \
+            .option("es.nodes.wan.only", "false") \
+            .option("es.write.operation", "index") \
+            .option("es.batch.size.entries", "1000") \
+            .option("es.batch.size.bytes", "10mb") \
             .mode("append") \
             .save()
         
         print(f" Indexed {df_es.count()} documents to Elasticsearch: news_enriched")
+        
     except Exception as e:
-        print(f" Error writing to Elasticsearch: {e}")
+        print(f"  Error writing to Elasticsearch (Method 1): {e}")
     
     # 9. Ghi vào MongoDB (doc_topics collection)
     try:
