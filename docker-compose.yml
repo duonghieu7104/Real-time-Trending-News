@@ -29,6 +29,8 @@ services:
             - ./model:/opt/spark/work-dir/model
             - ./processor:/opt/spark/work-dir/processor
             - ./jars:/opt/spark/work-dir/jars
+            - ./checkpoints:/opt/spark/work-dir/checkpoints
+            - ./models:/opt/spark/work-dir/models
         networks:
             - trending_news
 
@@ -53,6 +55,8 @@ services:
             - ./model:/opt/spark/work-dir/model
             - ./processor:/opt/spark/work-dir/processor
             - ./jars:/opt/spark/work-dir/jars
+            - ./checkpoints:/opt/spark/work-dir/checkpoints
+            - ./models:/opt/spark/work-dir/models
         networks:
             - trending_news
 
