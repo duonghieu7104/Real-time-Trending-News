@@ -1,5 +1,8 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import *
+from pyspark.sql.functions import (
+    col, from_json, current_timestamp, to_json, struct, 
+    lit, desc, udf
+)
 from pyspark.sql.types import *
 import numpy as np
 from datetime import datetime
@@ -13,6 +16,7 @@ from hdbscan import HDBSCAN
 from transformers import pipeline
 import torch
 import pandas as pd
+import builtins  # ← THÊM DÒNG NÀY
 
 print("="*80)
 print("🚀 BERTopic + Sentiment Processor for Docker")
@@ -132,9 +136,9 @@ def get_or_train_bertopic_model(embeddings, documents):
         return None
     
     try:
-        # UMAP để giảm chiều
+        # UMAP để giảm chiều - SỬ DỤNG builtins.min()
         umap_model = UMAP(
-            n_neighbors=min(15, len(embeddings) - 1),
+            n_neighbors=builtins.min(15, len(embeddings) - 1),  # ← FIX HERE
             n_components=5,
             min_dist=0.0,
             metric='cosine',

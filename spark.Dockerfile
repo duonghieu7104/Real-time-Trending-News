@@ -27,7 +27,7 @@ RUN pip3 install --no-cache-dir huggingface_hub==0.16.4 \
         numpy==1.24.3 \
         pandas==2.0.3 \
         onnxruntime==1.16.0 \
-        transformers==4.37.2 \
+        transformers==4.30.2 \
         torch==2.0.1 \
         pymongo==4.5.0 \
         kafka-python==2.0.2 \
