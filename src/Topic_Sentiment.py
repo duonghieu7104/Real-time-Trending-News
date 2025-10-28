@@ -243,9 +243,9 @@ input_schema = StructType([
     StructField("url", StringType(), True),
     StructField("source", StringType(), True),
     StructField("category", StringType(), True),
-    StructField("published_at", StringType(), True),
-    StructField("collected_at", StringType(), True),
-    StructField("processed_at", StringType(), True),
+    StructField("published_at", TimestampType(), True),
+    StructField("collected_at", TimestampType(), True),
+    StructField("processed_at", TimestampType(), True),
     StructField("embedding", ArrayType(DoubleType()), True),
     StructField("embedding_model", StringType(), True),
     StructField("embedding_generated_at", StringType(), True)
@@ -396,6 +396,8 @@ def process_batch(batch_df, batch_id):
         
         output_count = df_enriched.count()
         print(f"📤 Số output: {output_count}")
+
+        df_enriched.show(5, truncate=False)
         
         # ========== GHI SONG SONG 3 SINK ==========
         def write_kafka():
@@ -428,7 +430,7 @@ def process_batch(batch_df, batch_id):
                     .format("org.elasticsearch.spark.sql") \
                     .option("es.nodes", "elasticsearch-v4") \
                     .option("es.port", "9200") \
-                    .option("es.resource", "news_enriched/_doc") \
+                    .option("es.resource", "news_enriched") \
                     .option("es.mapping.id", "doc_id") \
                     .option("es.batch.size.entries", "500") \
                     .option("es.write.operation", "index") \
@@ -448,6 +450,9 @@ def process_batch(batch_df, batch_id):
                     col("doc_id"),
                     col("topic_id"),
                     col("topic_score").alias("score"),
+                    col("topic_keywords").alias("keywords"),
+                    col("published_at"),
+                    col("title"),
                     col("sentiment"),
                     lit(datetime.now().strftime("%Y-%m-%d")).alias("model_version"),
                     col("processing_time")
@@ -458,7 +463,7 @@ def process_batch(batch_df, batch_id):
                 
                 print("✓")
             except Exception as e:
-                print(f"✗ ({str(e)[:50]})")
+                print(f"✗ MongoDB: ({str(e)[:50]})")
         
         # GHI SONG SONG
         with ThreadPoolExecutor(max_workers=3) as executor:
