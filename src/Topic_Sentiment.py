@@ -17,9 +17,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 import gc
 
-print("="*80)
-print("🚀 BERTopic + Sentiment Processor (OPTIMIZED v2 - FIXED)")
-print("="*80)
+print("BERTopic + Sentiment Processor (OPTIMIZED v2 - FIXED)")
 
 # ==================== CẤU HÌNH TỐI ƯU ====================
 KAFKA_BOOTSTRAP_SERVERS = "kafka-v4:29092"
@@ -31,30 +29,30 @@ CHECKPOINT_PATH = "/opt/spark/work-dir/checkpoints/topic_sentiment"
 # CẤU HÌNH TỐI ƯU HÓA
 NUM_TOPICS = 20
 MIN_TOPIC_SIZE = 5
-BATCH_SIZE = 25  # GIẢM TỪ 30 XUỐNG 25
-TRIGGER_INTERVAL = "180 seconds"  # TĂNG TỪ 120s LÊN 180s
+BATCH_SIZE = 25  
+TRIGGER_INTERVAL = "180 seconds"  
 SENTIMENT_CHUNK_SIZE = 8
 MAX_TEXT_LENGTH = 256
-MAX_TOPIC_RECORDS = 25  # GIẢM TỪ 30 XUỐNG 25
+MAX_TOPIC_RECORDS = 25  
 
 RESET_CHECKPOINT = os.getenv("RESET_CHECKPOINT", "false").lower() == "true"
 
 # Reset checkpoint nếu cần
 if RESET_CHECKPOINT and os.path.exists(CHECKPOINT_PATH):
-    print(f"🔄 Đang reset checkpoint: {CHECKPOINT_PATH}")
+    print(f"Đang reset checkpoint: {CHECKPOINT_PATH}")
     shutil.rmtree(CHECKPOINT_PATH)
-    print("✅ Checkpoint đã reset")
+    print("Checkpoint đã reset")
 
 os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
 os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
 # ==================== KHỞI TẠO SPARK TỐI ƯU (ĐÃ SỬA LỖI) ====================
-print("\n📦 Khởi tạo Spark Session...")
+print("\nKhởi tạo Spark Session...")
 
 spark = SparkSession.builder \
     .appName("BERTopicSentimentOptimizedV2Fixed") \
     .config("spark.jars.packages", 
-            "org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1,"  # ✅ THAY ĐỔI: 3.5.0 → 3.4.1
+            "org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1,"  
             "org.mongodb.spark:mongo-spark-connector_2.12:10.2.0,"
             "org.elasticsearch:elasticsearch-spark-30_2.12:8.8.0") \
     .config("spark.mongodb.output.uri", "mongodb://mongo-v4:27017/news_db.doc_topics") \
@@ -86,17 +84,17 @@ spark = SparkSession.builder \
 
 spark.sparkContext.setLogLevel("WARN")
 
-print(f"✅ Spark đã khởi tạo")
-print(f"📁 Model: {MODEL_PATH}")
-print(f"📁 Checkpoint: {CHECKPOINT_PATH}")
-print(f"🔗 Kafka: {KAFKA_BOOTSTRAP_SERVERS}")
-print(f"📦 Batch size: {BATCH_SIZE}")
-print(f"⏱️  Trigger interval: {TRIGGER_INTERVAL}")
+print(f"Spark đã khởi tạo")
+print(f"Model: {MODEL_PATH}")
+print(f"Checkpoint: {CHECKPOINT_PATH}")
+print(f"Kafka: {KAFKA_BOOTSTRAP_SERVERS}")
+print(f"Batch size: {BATCH_SIZE}")
+print(f"⏱Trigger interval: {TRIGGER_INTERVAL}")
 print()
 
 # ==================== LOAD MODELS ====================
 
-print("📦 Đang tải Sentiment Model...")
+print("Đang tải Sentiment Model...")
 sentiment_analyzer = None
 try:
     sentiment_analyzer = pipeline(
@@ -105,9 +103,9 @@ try:
         device=0 if torch.cuda.is_available() else -1,
         batch_size=SENTIMENT_CHUNK_SIZE
     )
-    print(f"✅ Sentiment model đã tải (device: {'GPU' if torch.cuda.is_available() else 'CPU'})")
+    print(f"Sentiment model đã tải (device: {'GPU' if torch.cuda.is_available() else 'CPU'})")
 except Exception as e:
-    print(f"⚠️  Lỗi khi tải sentiment model: {e}")
+    print(f"Lỗi khi tải sentiment model: {e}")
     sentiment_analyzer = None
 
 # Load BERTopic
@@ -115,7 +113,7 @@ bertopic_model = None
 topic_keywords_global = {}
 
 if os.path.exists(MODEL_PATH):
-    print(f"📂 Đang tải BERTopic model...")
+    print(f"Đang tải BERTopic model...")
     try:
         with open(MODEL_PATH, 'rb') as f:
             bertopic_model = pickle.load(f)
@@ -130,12 +128,12 @@ if os.path.exists(MODEL_PATH):
             else:
                 topic_keywords_global[topic_id] = ["outlier"]
         
-        print(f"✅ BERTopic đã tải ({len([t for t in topic_keywords_global.keys() if t >= 0])} topics)")
+        print(f"BERTopic đã tải ({len([t for t in topic_keywords_global.keys() if t >= 0])} topics)")
     except Exception as e:
-        print(f"⚠️  Lỗi khi tải BERTopic: {e}")
+        print(f"Lỗi khi tải BERTopic: {e}")
         bertopic_model = None
 else:
-    print("⚠️  Không tìm thấy BERTopic model. Topic modeling bị tắt.")
+    print("Không tìm thấy BERTopic model. Topic modeling bị tắt.")
 
 print()
 
@@ -194,7 +192,7 @@ def analyze_sentiment_batch(texts: pd.Series) -> pd.Series:
                     result_idx += 1
                     
     except Exception as e:
-        print(f"⚠️  Lỗi sentiment batch: {e}")
+        print(f"Lỗi sentiment batch: {e}")
         results = ["neutral"] * len(texts)
     
     return pd.Series(results)
@@ -227,7 +225,7 @@ def infer_topics_batch(embeddings_array, documents_list):
         return topics, topic_scores, keywords_list
         
     except Exception as e:
-        print(f"⚠️  Lỗi topic inference: {e}")
+        print(f"Lỗi topic inference: {e}")
         return (
             [-1] * len(documents_list),
             [0.0] * len(documents_list),
@@ -253,7 +251,7 @@ input_schema = StructType([
 
 # ==================== KAFKA STREAM (ĐÃ TỐI ƯU) ====================
 
-print(f"📨 Đang kết nối tới Kafka: {KAFKA_INPUT_TOPIC}")
+print(f"Đang kết nối tới Kafka: {KAFKA_INPUT_TOPIC}")
 
 try:
     df_stream = spark \
@@ -267,9 +265,9 @@ try:
         .option("kafkaConsumer.pollTimeoutMs", "180000") \
         .load()
     
-    print("✅ Kafka stream đã kết nối")
+    print("Kafka stream đã kết nối")
 except Exception as e:
-    print(f"❌ Kết nối Kafka thất bại: {e}")
+    print(f"Kết nối Kafka thất bại: {e}")
     raise
 
 # Parse JSON
@@ -289,7 +287,7 @@ def process_batch(batch_df, batch_id):
     batch_counter["count"] += 1
     
     print(f"\n{'='*80}")
-    print(f"📦 Batch #{batch_counter['count']} (ID: {batch_id}) - {datetime.now().strftime('%H:%M:%S')}")
+    print(f"Batch #{batch_counter['count']} (ID: {batch_id}) - {datetime.now().strftime('%H:%M:%S')}")
     print(f"{'='*80}")
     
     try:
@@ -298,11 +296,11 @@ def process_batch(batch_df, batch_id):
         batch_count = batch_df.count()
         
         if batch_count == 0:
-            print("⚠️  Batch rỗng - bỏ qua")
+            print("Batch rỗng - bỏ qua")
             batch_df.unpersist()
             return
         
-        print(f"📊 Số bản ghi: {batch_count}")
+        print(f"Số bản ghi: {batch_count}")
         
         # Filter với persist
         df_valid = batch_df.filter(
@@ -316,15 +314,15 @@ def process_batch(batch_df, batch_id):
         batch_df.unpersist()
         
         if valid_count == 0:
-            print("⚠️  Không có bản ghi hợp lệ")
+            print("Không có bản ghi hợp lệ")
             df_valid.unpersist()
             return
         
-        print(f"✅ Hợp lệ: {valid_count}/{batch_count}")
+        print(f"Hợp lệ: {valid_count}/{batch_count}")
         
         # ========== TOPIC MODELING (GIỚI HẠN) ==========
         if bertopic_model is not None:
-            print("🎯 Đang phân tích topic...")
+            print("Đang phân tích topic...")
             
             # CHỈ LẤY TỐI ĐA MAX_TOPIC_RECORDS
             pdf = df_valid.select("_id", "content", "title", "embedding") \
@@ -360,7 +358,7 @@ def process_batch(batch_df, batch_id):
             del pdf, embeddings, documents, df_topics
             gc.collect()
             
-            print("   ✓ Hoàn thành")
+            print("Hoàn thành")
         else:
             df_with_topic = df_valid \
                 .withColumn("topic_id", lit(-1)) \
@@ -371,12 +369,12 @@ def process_batch(batch_df, batch_id):
         df_valid.unpersist()
         
         # ========== SENTIMENT (RÚT NGẮN TEXT) ==========
-        print("😊 Đang phân tích cảm xúc...")
+        print("Đang phân tích cảm xúc...")
         df_with_sentiment = df_with_topic.withColumn(
             "sentiment",
             analyze_sentiment_batch(expr(f"substring(content, 1, {MAX_TEXT_LENGTH})"))
         )
-        print("   ✓ Hoàn thành")
+        print("Hoàn thành")
         
         # ========== CHUẨN BỊ OUTPUT ==========
         df_enriched = df_with_sentiment.select(
@@ -395,7 +393,7 @@ def process_batch(batch_df, batch_id):
         ).persist()
         
         output_count = df_enriched.count()
-        print(f"📤 Số output: {output_count}")
+        print(f"Số output: {output_count}")
 
         df_enriched.show(5, truncate=False)
         
@@ -417,9 +415,9 @@ def process_batch(batch_df, batch_id):
                     .option("kafka.retries", "3") \
                     .save()
                 
-                print("✓")
+                print("Success")
             except Exception as e:
-                print(f"✗ ({str(e)[:50]})")
+                print(f"({str(e)[:50]})")
         
         def write_elasticsearch():
             try:
@@ -437,9 +435,9 @@ def process_batch(batch_df, batch_id):
                     .mode("append") \
                     .save()
                 
-                print("✓")
+                print("Success")
             except Exception as e:
-                print(f"✗ ({str(e)[:50]})")
+                print(f"({str(e)[:50]})")
         
         def write_mongodb():
             try:
@@ -461,9 +459,9 @@ def process_batch(batch_df, batch_id):
                     .mode("append") \
                     .save()
                 
-                print("✓")
+                print("Success")
             except Exception as e:
-                print(f"✗ MongoDB: ({str(e)[:50]})")
+                print(f"MongoDB: ({str(e)[:50]})")
         
         # GHI SONG SONG
         with ThreadPoolExecutor(max_workers=3) as executor:
@@ -477,7 +475,7 @@ def process_batch(batch_df, batch_id):
                 future.result()
         
         # ========== THỐNG KÊ ==========
-        print(f"\n📊 Thống kê:")
+        print(f"\nThống kê:")
         
         if bertopic_model:
             try:
@@ -508,10 +506,9 @@ def process_batch(batch_df, batch_id):
         df_enriched.unpersist()
         gc.collect()
         
-        print(f"{'='*80}\n")
         
     except Exception as e:
-        print(f"\n❌ Lỗi xử lý batch: {e}")
+        print(f"\nLỗi xử lý batch: {e}")
         import traceback
         traceback.print_exc()
         
@@ -524,9 +521,7 @@ def process_batch(batch_df, batch_id):
 
 # ==================== START STREAMING ====================
 
-print("\n" + "="*80)
-print("🚀 BẮT ĐẦU STREAMING")
-print("="*80)
+print("BẮT ĐẦU STREAMING")
 
 query = df_with_time \
     .writeStream \
@@ -536,27 +531,27 @@ query = df_with_time \
     .trigger(processingTime=TRIGGER_INTERVAL) \
     .start()
 
-print("\n✅ STREAMING ĐANG HOẠT ĐỘNG")
-print(f"   📨 Input: {KAFKA_INPUT_TOPIC}")
-print(f"   📤 Output: {KAFKA_OUTPUT_TOPIC}, Elasticsearch, MongoDB")
-print(f"   ⏱️  Interval: {TRIGGER_INTERVAL} | Batch: {BATCH_SIZE}")
-print(f"   🎯 BERTopic: {'BẬT' if bertopic_model else 'TẮT'} (tối đa {MAX_TOPIC_RECORDS} records)")
-print(f"   😊 Sentiment: {'BẬT' if sentiment_analyzer else 'TẮT'} (tối đa {MAX_TEXT_LENGTH} ký tự)")
-print(f"   🧵 Ghi song song: 3 sinks (Kafka + ES + Mongo)")
-print(f"\n💡 Tối ưu hóa:")
+print("\nSTREAMING ĐANG HOẠT ĐỘNG")
+print(f"Input: {KAFKA_INPUT_TOPIC}")
+print(f"Output: {KAFKA_OUTPUT_TOPIC}, Elasticsearch, MongoDB")
+print(f"Interval: {TRIGGER_INTERVAL} | Batch: {BATCH_SIZE}")
+print(f"BERTopic: {'BẬT' if bertopic_model else 'TẮT'} (tối đa {MAX_TOPIC_RECORDS} records)")
+print(f" Sentiment: {'BẬT' if sentiment_analyzer else 'TẮT'} (tối đa {MAX_TEXT_LENGTH} ký tự)")
+print(f"Ghi song song: 3 sinks (Kafka + ES + Mongo)")
+print(f"\nTối ưu hóa:")
 print(f"   • Giảm batch size: {BATCH_SIZE}")
 print(f"   • Tăng trigger interval: {TRIGGER_INTERVAL}")
 print(f"   • Giới hạn độ dài text: {MAX_TEXT_LENGTH} ký tự")
 print(f"   • Ghi song song 3 sink")
 print(f"   • Quản lý bộ nhớ với gc.collect()")
-print(f"   • ✅ SỬA LỖI: Kafka connector 3.4.1 (tương thích)")
-print(f"\n💡 Ctrl+C để dừng | RESET_CHECKPOINT=true để reset offsets\n")
+print(f"   • SỬA LỖI: Kafka connector 3.4.1 (tương thích)")
+print(f"\n Ctrl+C để dừng | RESET_CHECKPOINT=true để reset offsets\n")
 print("="*80 + "\n")
 
 try:
     query.awaitTermination()
 except KeyboardInterrupt:
-    print("\n\n🛑 ĐANG DỪNG...")
+    print("\n\nĐANG DỪNG...")
     query.stop()
     spark.stop()
-    print("✅ ĐÃ DỪNG\n")
+    print("ĐÃ DỪNG\n")
