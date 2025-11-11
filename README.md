@@ -1,6 +1,8 @@
 
 # Real-time Trending News System
 
+Link video demo https://youtu.be/ZufXfbmRjao
+
 Hệ thống thu thập và xử lý tin tức real-time sử dụng Apache Airflow, Spark, Kafka, MongoDB và Elasticsearch.
 
 ## 🏗️ Architecture
